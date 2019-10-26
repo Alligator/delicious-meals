@@ -1,0 +1,30 @@
+{
+  "name": "meal-rater",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/index.js",
+  "scripts": {
+    "server": "node server/index.js",
+    "client-build": "webpack --mode=production",
+    "client-watch": "webpack --watch --mode=development"
+  },
+  "author": "",
+  "license": "Unlicense",
+  "dependencies": {
+    "@babel/core": "^7.6.4",
+    "@babel/preset-env": "^7.6.3",
+    "@babel/preset-react": "^7.6.3",
+    "babel-loader": "^8.0.6",
+    "cron": "^1.7.2",
+    "discord.js": "^11.5.1",
+    "elo-rating": "^1.0.1",
+    "express": "^4.17.1",
+    "morgan": "^1.9.1",
+    "react": "^16.11.0",
+    "react-dom": "^16.11.0",
+    "regenerator-runtime": "^0.13.3",
+    "sqlite3": "^4.1.0",
+    "webpack": "^4.41.2",
+    "webpack-cli": "^3.3.9"
+  }
+}
