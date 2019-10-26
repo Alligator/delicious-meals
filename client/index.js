@@ -10,6 +10,7 @@ const initialState = {
   stats: {
     topTenMessages: [],
     topTenAuthors: [],
+    totalVotes: 0,
   },
 };
 
@@ -73,7 +74,10 @@ function App() {
 
     response = await fetch('authors/topten');
     const topTenAuthors = await response.json();
-    dispatch({ type: 'setStats', stats: { topTenMessages, topTenAuthors }});
+
+    response = await fetch('meals/totalvotes');
+    const votes = await response.json();
+    dispatch({ type: 'setStats', stats: { topTenMessages, topTenAuthors, totalVotes: votes.total }});
   }
 
   async function vote(winnerId, loserId) {
@@ -164,6 +168,7 @@ function App() {
           </ol>
         </div>
       </div>
+      <p>Total votes <strong>{state.stats.totalVotes}</strong></p>
     </React.Fragment>
   );
 }

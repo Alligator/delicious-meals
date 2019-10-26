@@ -63,6 +63,10 @@ const messageDb = {
       LIMIT 10`,
     );
   },
+  async totalVotes() {
+    const votes = await messageDb.query('SELECT (sum(wins) + sum(losses)) / 2 AS total FROM messages');
+    return votes[0];
+  },
 
   async updateRatings(winnerId, loserId) {
     const winner = await messageDb.get(winnerId);
@@ -105,6 +109,9 @@ app.get('/meals/pair', async (req, res) => {
 });
 app.get('/meals/topten', async (req, res) => {
   res.send(await messageDb.topTenMessages());
+});
+app.get('/meals/totalvotes', async (req, res) => {
+  res.send(await messageDb.totalVotes());
 });
 app.get('/meals/:mealId', async (req, res) => {
   res.send(await messageDb.get(req.params.mealId));
