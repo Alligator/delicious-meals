@@ -2,15 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <title>Flavoured Town</title>
   <script src="bundle.js"></script>
   <style>
     body {
-      font-family: 'Segoe UI', 'Helvetica', sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
       background-color: hsl(0, 0%, 20%);
       color: hsl(0, 0%, 90%);
       max-width: 800px;
       margin: 0 auto;
+      padding: 0 1em;
     }
 
     h1 {
@@ -90,7 +92,16 @@
 
     p {
       text-align: center;
-      min-height: 2em;
+      min-height: 3em;
+    }
+
+    @media (max-width: 768px) {
+      .meals {
+        display: block;
+      }
+      .stats {
+        display: block;
+      }
     }
   </style>
 </head>
