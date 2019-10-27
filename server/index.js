@@ -2,17 +2,18 @@ const sqlite3 = require('sqlite3').verbose();
 const elo = require('elo-rating');
 const express = require('express');
 const morgan = require('morgan');
+const process = require('process');
 const CronJob = require('cron').CronJob;
-const dumpChannelSinceLatest = require('./init-db').dumpChannelSinceLatest;
+const dumpChannelSinceLatest = require('./dump-channel').dumpChannelSinceLatest;
 
-const openDb = () => new sqlite3.Database('messages.db');
+const db = new sqlite3.Database('messages.db');
+process.on('SIGINT', () => db.close());
+process.on('SIGTERM', () => db.close());
+
 const messageDb = {
   query(query, params = []) {
-    const db = openDb();
-    console.log('  query:', query, params);
     return new Promise((resolve, reject) => {
       db.all(query, params, (err, result) => {
-        db.close();
         if (!err) {
           resolve(result);
         } else {
@@ -23,17 +24,19 @@ const messageDb = {
     });
   },
   exec(query, params) {
-    const db = openDb();
-    console.log('  exec:', query, params);
     return new Promise((resolve, reject) => {
-      db.run(query, params, (err) => {
-        db.close();
-        if (!err) {
-          resolve();
-        } else {
-          console.error(err);
-          reject();
-        }
+      db.serialize(() => {
+        db.run('BEGIN TRANSACTION');
+        db.run(query, params, (err) => {
+          if (!err) {
+            db.run('COMMIT');
+            resolve();
+          } else {
+            db.run('ROLLBACK');
+            console.error(err);
+            reject();
+          }
+        });
       });
     });
   },
@@ -102,6 +105,12 @@ const messageDb = {
     return stats[0];
   },
 
+  updateVotes(userAgent, url) {
+    return messageDb.exec(
+      `INSERT INTO votes(userAgent, url) VALUES ($userAgent, $url)`,
+      { $userAgent: userAgent, $url: url },
+    );
+  },
   async updateRatings(winnerId, loserId) {
     const winner = await messageDb.get(winnerId);
     const loser = await messageDb.get(loserId);
@@ -141,18 +150,13 @@ app.get('/', async (req, res) => {
 app.get('/meals/pair', async (req, res) => {
   res.send(await messageDb.closeMatch());
 });
-app.get('/meals/topten', async (req, res) => {
-  res.send(await messageDb.topTenMessages());
-});
-app.get('/meals/totalvotes', async (req, res) => {
-  res.send(await messageDb.totalVotes());
-});
 app.get('/meals/:mealId', async (req, res) => {
   res.send(await messageDb.get(req.params.mealId));
 });
 app.post('/meals/vote', async (req, res) => {
   const { winnerId, loserId } = req.body;
   await messageDb.updateRatings(winnerId, loserId);
+  await messageDb.updateVotes(req.get('User-Agent'), req.originalUrl);
   const winner = await messageDb.get(winnerId);
   const loser = await messageDb.get(loserId);
   res.send({ winner, loser });
