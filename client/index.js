@@ -8,9 +8,10 @@ const initialState = {
   currentMeals: [],
   previousMeals: [],
   stats: {
-    topTenMessages: [],
-    topTenAuthors: [],
+    topMessages: [],
+    topAuthors: [],
     totalVotes: 0,
+    totalMeals: 0,
   },
 };
 
@@ -68,16 +69,9 @@ function App() {
   }
 
   async function fetchStats() {
-    let response;
-    response = await fetch('meals/topten');
-    const topTenMessages = await response.json();
-
-    response = await fetch('authors/topten');
-    const topTenAuthors = await response.json();
-
-    response = await fetch('meals/totalvotes');
-    const votes = await response.json();
-    dispatch({ type: 'setStats', stats: { topTenMessages, topTenAuthors, totalVotes: votes.total }});
+    const response = await fetch('stats');
+    const stats = await response.json();
+    dispatch({ type: 'setStats', stats });
   }
 
   async function vote(winnerId, loserId) {
@@ -87,8 +81,10 @@ function App() {
       headers: { 'Content-Type': 'application/json' },
     });
     const json = await response.json();
-    await fetchNewPair();
     dispatch({ type: 'voteComplete', winner: json.winner, loser: json.loser });
+
+    await fetchNewPair();
+    await fetchStats();
     setMessage(randomMessage());
   }
 
@@ -111,7 +107,7 @@ function App() {
   return (
     <React.Fragment>
       <h1>Welcome To Flavored Town</h1>
-      <p>{message}</p>
+      <p className="narrative">{message}</p>
       {state.currentMeals && state.currentMeals.length === 2 && (
         <div className="meals">
           <Meal
@@ -145,7 +141,7 @@ function App() {
         <div className="stats__list">
           <h2>Top Ten Meals</h2>
           <ol>
-            {state.stats.topTenMessages.map(meal => (
+            {state.stats.topMessages.map(meal => (
               <li>
                 <strong>{meal.content}</strong> <em>à la {meal.author}</em>
                 <br />
@@ -157,18 +153,23 @@ function App() {
         <div className="stats__list">
           <h2>Top Ten Chefs</h2>
           <ol>
-            {state.stats.topTenAuthors.map(author => (
+            {state.stats.topAuthors.map(author => (
               <li>
-                <div className="stats__list-item">
-                  <strong>{author.author}</strong>
-                  {author.totalRating.toFixed(2)}
-                </div>
+                <strong>{author.author}</strong>
+                <br />
+                <strong>{author.totalWins}</strong> wins, <strong>{author.totalLosses}</strong> losses, <strong>{author.totalRating.toFixed(1)}</strong> average elo
               </li>
             ))}
           </ol>
         </div>
       </div>
-      <p>Total votes <strong>{state.stats.totalVotes}</strong></p>
+      <p>
+        <strong>{state.stats.totalVotes}</strong> votes
+        {', '}
+        <strong>{state.stats.totalMeals}</strong> meals 
+        {', '}
+        <strong>{state.stats.totalAuthors}</strong> chefs 
+      </p>
     </React.Fragment>
   );
 }

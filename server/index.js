@@ -53,9 +53,13 @@ const messageDb = {
   },
   topTenAuthors() {
     return messageDb.query(`
-      SELECT author, totalRating
+      SELECT author, totalRating, totalWins, totalLosses
       FROM (
-        SELECT author, CAST(sum(rating) AS real) / count(1) as totalRating
+        SELECT
+          author,
+          CAST(sum(rating) AS real) / count(1) as totalRating,
+          sum(wins) AS totalWins,
+          sum(losses) AS totalLosses
         FROM messages
         GROUP BY author
       )
@@ -63,9 +67,15 @@ const messageDb = {
       LIMIT 10`,
     );
   },
-  async totalVotes() {
-    const votes = await messageDb.query('SELECT (sum(wins) + sum(losses)) / 2 AS total FROM messages');
-    return votes[0];
+  async stats() {
+    const stats = await messageDb.query(`
+      SELECT
+        count(1)                      AS totalMeals,
+        count(distinct author)        AS totalAuthors,
+        (sum(wins) + sum(losses)) / 2 AS totalVotes
+      FROM messages
+    `);
+    return stats[0];
   },
 
   async updateRatings(winnerId, loserId) {
@@ -124,8 +134,14 @@ app.post('/meals/vote', async (req, res) => {
   res.send({ winner, loser });
 });
 
-app.get('/authors/topten', async (req, res) => {
-  res.send(await messageDb.topTenAuthors());
+app.get('/stats', (req, res) => {
+  Promise.all([
+    messageDb.topTenMessages(),
+    messageDb.topTenAuthors(),
+    messageDb.stats(),
+  ]).then(([topMessages, topAuthors, stats]) => {
+    res.send({ topMessages, topAuthors, ...stats });
+  });
 });
 
 app.listen(3000, () => console.log('listening'));
