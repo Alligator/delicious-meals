@@ -45,6 +45,30 @@ const messageDb = {
     const messages = await messageDb.query('SELECT * FROM messages WHERE id = ?', [id]);
     return messages.length > 0 ? messages[0] : null;
   },
+  async closeMatch() {
+    // get a random record
+    const first = await messageDb.query('SELECT * FROM messages ORDER BY random() LIMIT 1');
+
+    // try and get a match with a close rating
+    const tolerance = 20;
+    const matches = await messageDb.query(`
+      SELECT *
+      FROM messages
+      WHERE id != $id
+      AND rating > $minRating
+      AND rating < $maxRating
+      ORDER BY random()
+      LIMIT 1`,
+      { $id: first[0].id, $minRating: first[0].rating - tolerance, $maxRating: first[0].rating + tolerance },
+    );
+
+    if (matches.length === 0) {
+      // no close match found, just return two random ones
+      return await messageDb.query('SELECT * FROM messages ORDER BY random() LIMIT 2');
+    }
+
+    return [first[0], matches[0]];
+  },
   randomPair() {
     return messageDb.query('SELECT * FROM messages ORDER BY random() LIMIT 2');
   },
@@ -115,7 +139,7 @@ app.get('/', async (req, res) => {
 });
 
 app.get('/meals/pair', async (req, res) => {
-  res.send(await messageDb.randomPair());
+  res.send(await messageDb.closeMatch());
 });
 app.get('/meals/topten', async (req, res) => {
   res.send(await messageDb.topTenMessages());
