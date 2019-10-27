@@ -29,7 +29,7 @@ function reducer(state, action) {
         ...state,
         winnerId: action.winner.id,
         loserId: action.loser.id,
-        previousMeals: state.previousMeals.map((meal) => {
+        currentMeals: state.currentMeals.map((meal) => {
           if (meal.id === action.winner.id) {
             return action.winner;
           } else if (meal.id === action.loser.id) {
