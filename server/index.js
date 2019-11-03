@@ -49,6 +49,11 @@ const messageDb = {
     return messages.length > 0 ? messages[0] : null;
   },
   async closeMatch() {
+    // sometimes just do a random pair
+    if (Math.random() > 0.9) {
+      return await messageDb.randomPair();
+    }
+
     // get a random record
     const first = await messageDb.query('SELECT * FROM messages ORDER BY random() LIMIT 1');
 
@@ -67,7 +72,8 @@ const messageDb = {
 
     if (matches.length === 0) {
       // no close match found, just return two random ones
-      return await messageDb.query('SELECT * FROM messages ORDER BY random() LIMIT 2');
+      console.log('MATCHMAKING> couldn\'t match');
+      return await messageDb.randomPair();
     }
 
     return [first[0], matches[0]];
@@ -114,7 +120,23 @@ const messageDb = {
   async updateRatings(winnerId, loserId) {
     const winner = await messageDb.get(winnerId);
     const loser = await messageDb.get(loserId);
-    const result = elo.calculate(winner.rating, loser.rating, true);
+    
+    // here come the k experiments
+    // original:
+    //   k = 20, doesn't change
+    //
+    // experiment 1:
+    //   k = 32 for meals with <= 4 votes
+    //   k = 16 for meals with a rating < 1600
+    //   k = 10 for meals with a rating >= 1600
+    let k = 16;
+    if ((winner.wins + winner.losses) <= 4) {
+      k = 32;
+    } else if (winner.rating >= 1600) {
+      k = 10;
+    }
+
+    const result = elo.calculate(winner.rating, loser.rating, true, k);
     await messageDb.updateRating(winnerId, result.playerRating, true);
     await messageDb.updateRating(loserId, result.opponentRating, false);
   },
