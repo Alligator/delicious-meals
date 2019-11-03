@@ -84,20 +84,22 @@ const messageDb = {
   topTenMessages() {
     return messageDb.query('SELECT * FROM messages ORDER BY rating DESC LIMIT 10');
   },
-  topTenAuthors() {
+  authors(limit = -1) {
     return messageDb.query(`
-      SELECT author, totalRating, totalWins, totalLosses
+      SELECT author, ratio, totalWins, totalLosses, totalMeals
       FROM (
         SELECT
           author,
-          CAST(sum(rating) AS real) / count(1) as totalRating,
+          CAST(sum(wins) AS real) / sum(losses) as ratio,
           sum(wins) AS totalWins,
-          sum(losses) AS totalLosses
+          sum(losses) AS totalLosses,
+          count(1) AS totalMeals
         FROM messages
         GROUP BY author
       )
-      ORDER BY totalRating DESC
-      LIMIT 10`,
+      ORDER BY ratio DESC
+      LIMIT ?`,
+      limit,
     );
   },
   async stats() {
@@ -188,7 +190,7 @@ app.post('/meals/vote', async (req, res) => {
 app.get('/stats', (req, res) => {
   Promise.all([
     messageDb.topTenMessages(),
-    messageDb.topTenAuthors(),
+    messageDb.authors(10),
     messageDb.stats(),
   ]).then(([topMessages, topAuthors, stats]) => {
     res.send({ topMessages, topAuthors, ...stats });
