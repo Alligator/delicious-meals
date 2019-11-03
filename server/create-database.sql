@@ -8,7 +8,8 @@ CREATE TABLE IF NOT EXISTS messages(
 );
 
 CREATE TABLE IF NOT EXISTS votes(
-  userAgent TEXT,
+  ip        TEXT,
   url       TEXT,
+  userAgent TEXT,
   timestamp TEXT DEFAULT (datetime('now', 'utc'))
 );

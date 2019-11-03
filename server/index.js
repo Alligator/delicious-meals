@@ -105,10 +105,10 @@ const messageDb = {
     return stats[0];
   },
 
-  updateVotes(userAgent, url) {
+  updateVotes(ip, userAgent, url) {
     return messageDb.exec(
-      `INSERT INTO votes(userAgent, url) VALUES ($userAgent, $url)`,
-      { $userAgent: userAgent, $url: url },
+      `INSERT INTO votes(ip, userAgent, url) VALUES ($ip, $userAgent, $url)`,
+      { $ip: ip, $userAgent: userAgent, $url: url },
     );
   },
   async updateRatings(winnerId, loserId) {
@@ -142,6 +142,7 @@ const app = express();
 app.use(express.json());
 app.use(express.static('static'));
 app.use(morgan('combined'));
+app.set('trust proxy', 'loopback');
 
 app.get('/', async (req, res) => {
   res.send(await messageDb.all());
@@ -156,7 +157,7 @@ app.get('/meals/:mealId', async (req, res) => {
 app.post('/meals/vote', async (req, res) => {
   const { winnerId, loserId } = req.body;
   await messageDb.updateRatings(winnerId, loserId);
-  await messageDb.updateVotes(req.get('User-Agent'), req.originalUrl);
+  await messageDb.updateVotes(req.ip, req.get('User-Agent'), req.originalUrl);
   const winner = await messageDb.get(winnerId);
   const loser = await messageDb.get(loserId);
   res.send({ winner, loser });
