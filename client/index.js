@@ -2,6 +2,7 @@ import 'regenerator-runtime/runtime';
 
 import React, { useReducer, useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
+import Router from 'preact-router';
 import Meal from './meal';
 
 const initialState = {
@@ -31,9 +32,9 @@ function reducer(state, action) {
         loserId: action.loser.id,
         currentMeals: state.currentMeals.map((meal) => {
           if (meal.id === action.winner.id) {
-            return action.winner;
+            return { ...action.winner, ratingDiff: action.winner.rating - meal.rating };
           } else if (meal.id === action.loser.id) {
-            return action.loser;
+            return { ...action.loser, ratingDiff: action.loser.rating - meal.rating };
           }
           return meal;
         }),
@@ -58,8 +59,9 @@ function randomMessage() {
   return messages[Math.floor(Math.random() * messages.length)];
 }
 
-function App() {
+function Home() {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState(randomMessage);
 
   async function fetchNewPair() {
@@ -99,14 +101,19 @@ function App() {
 
   // initial fetch
   useEffect(() => {
-    fetchStats();
-    fetchNewPair();
+    const fetchData = async () => {
+      await Promise.all([fetchStats(), fetchNewPair()]);
+      setLoading(false);
+    };
+    fetchData();
   }, []);
 
-  console.log(state);
+  if (loading) {
+    return null;
+  }
+
   return (
     <React.Fragment>
-      <h1>Welcome To Flavored Town</h1>
       <p className="narrative">{message}</p>
       {state.currentMeals && state.currentMeals.length === 2 && (
         <div className="meals">
@@ -149,20 +156,23 @@ function App() {
               </li>
             ))}
           </ol>
+          <p><a href="/all-meals">View All</a></p>
         </div>
         <div className="stats__list">
           <h2>Top Ten Chefs</h2>
           <ol>
             {state.stats.topAuthors.map(author => (
               <li>
-                <strong>{author.author}</strong>
+                <strong>{author.author}</strong> - {author.totalMeals} {author.totalMeals > 1 ? 'meals' : 'meal'}
                 <br />
-                <strong>{author.totalWins}</strong> wins, <strong>{author.totalLosses}</strong> losses, <strong>{author.totalRating.toFixed(1)}</strong> average elo
+                <strong>{author.totalWins}</strong> wins, <strong>{author.totalLosses}</strong> losses, <strong>{author.ratio.toFixed(2)}</strong> ratio
               </li>
             ))}
           </ol>
+          <p><a href="/all-chefs">View All</a></p>
         </div>
       </div>
+      <h2>Stats</h2>
       <p>
         <strong>{state.stats.totalVotes}</strong> votes
         {', '}
@@ -171,6 +181,87 @@ function App() {
         <strong>{state.stats.totalAuthors}</strong> chefs 
       </p>
     </React.Fragment>
+  );
+}
+
+function AllMeals() {
+  const [meals, setMeals] = useState([]);
+
+  useEffect(() => {
+    const loadData = async () => {
+      const response = await fetch('meals/');
+      const meals = await response.json();
+      setMeals(meals);
+    };
+
+    loadData();
+  }, []);
+
+  return (
+    <React.Fragment>
+      <h2>All Meals</h2>
+      <div className="stats">
+        <div className="stats__list">
+          <ol>
+            {meals.map(meal => (
+              <li>
+                <strong>{meal.content}</strong> <em>à la {meal.author}</em>
+                <br />
+                <strong>{meal.wins}</strong> wins, <strong>{meal.losses}</strong> losses, <strong>{meal.rating}</strong> elo
+              </li>
+            ))}
+          </ol>
+        </div>
+      </div>
+      <p><a href="/">Back</a></p>
+    </React.Fragment>
+  );
+}
+
+function AllChefs() {
+  const [authors, setAuthors] = useState([]);
+
+  useEffect(() => {
+    const loadData = async () => {
+      const response = await fetch('authors/');
+      const authors = await response.json();
+      setAuthors(authors);
+    };
+
+    loadData();
+  }, []);
+
+  return (
+    <React.Fragment>
+      <h2>All Chefs</h2>
+      <div className="stats">
+        <div className="stats__list">
+          <ol>
+            {authors.map(author => (
+              <li>
+                <strong>{author.author}</strong> - {author.totalMeals} {author.totalMeals > 1 ? 'meals' : 'meal'}
+                <br />
+                <strong>{author.totalWins}</strong> wins, <strong>{author.totalLosses}</strong> losses, <strong>{author.ratio.toFixed(2)}</strong> ratio
+              </li>
+            ))}
+          </ol>
+        </div>
+      </div>
+      <p><a href="/">Back</a></p>
+    </React.Fragment>
+  );
+}
+
+function App() {
+  return (
+    <>
+      <h1>Welcome To Flavored Town</h1>
+      <Router>
+        <Home path="/" />
+        <AllMeals path="/all-meals" />
+        <AllChefs path="/all-chefs" />
+      </Router>
+    </>
   );
 }
 

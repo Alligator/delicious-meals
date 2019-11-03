@@ -27,6 +27,17 @@
       text-align: center;
     }
 
+    a {
+      color: hsl(330, 100%, 70.6%);
+    }
+
+    .red {
+      color: hsl(355, 100%, 70%);
+    }
+    .green {
+      color: hsl(90, 100%, 70%);
+    }
+
     .meals {
       display: flex;
     }
@@ -54,9 +65,6 @@
 
     .meal--active {
       cursor: pointer;
-    }
-    .meal--active:hover {
-      background-color: hsl(320, 50%, 40%);
     }
     .meal--active h2 {
       padding: 0;
@@ -100,6 +108,12 @@
       }
       .stats {
         display: block;
+      }
+    }
+
+    @media (hover: hover) {
+      .meal--active:hover {
+        background-color: hsl(320, 50%, 40%);
       }
     }
   </style>

@@ -42,7 +42,7 @@ const messageDb = {
   },
 
   all() {
-    return messageDb.query('SELECT * FROM messages');
+    return messageDb.query('SELECT * FROM messages ORDER BY rating DESC');
   },
   async get(id) {
     const messages = await messageDb.query('SELECT * FROM messages WHERE id = ?', [id]);
@@ -164,7 +164,7 @@ dumpChannelSinceLatest();
 
 const app = express();
 app.use(express.json());
-app.use(express.static('static'));
+app.use(express.static('static', { extensions: ['html'] }));
 app.use(morgan('combined'));
 app.set('trust proxy', 'loopback');
 
@@ -172,6 +172,9 @@ app.get('/', async (req, res) => {
   res.send(await messageDb.all());
 });
 
+app.get('/meals/', async (req, res) => {
+  res.send(await messageDb.all());
+});
 app.get('/meals/pair', async (req, res) => {
   res.send(await messageDb.closeMatch());
 });
@@ -187,6 +190,10 @@ app.post('/meals/vote', async (req, res) => {
   res.send({ winner, loser });
 });
 
+app.get('/authors/', async (req, res) => {
+  res.send(await messageDb.authors());
+});
+
 app.get('/stats', (req, res) => {
   Promise.all([
     messageDb.topTenMessages(),
@@ -195,6 +202,10 @@ app.get('/stats', (req, res) => {
   ]).then(([topMessages, topAuthors, stats]) => {
     res.send({ topMessages, topAuthors, ...stats });
   });
+});
+
+app.get('*', (req, res) => {
+  res.redirect('/');
 });
 
 app.listen(3000, () => console.log('listening'));
