@@ -1,8 +1,11 @@
 import React from 'react';
 
-function Meal({ meal, variant, pulse, onClick }) {
+function Meal({ meal, variant, pulse, onClick, number }) {
   return (
     <div className={`meal ${variant ? ('meal--' + variant) : ''} ${pulse ? 'meal--pulse' : ''}`} onClick={onClick}>
+      {variant === 'active' && (
+        <div className="meal__number">{number}</div>
+      )}
       {variant !== 'active' && (
         <div className="meal__stats">
           <strong>{meal.wins}</strong> wins, <strong>{meal.losses}</strong> losses, <strong>{meal.rating}</strong> elo

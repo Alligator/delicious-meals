@@ -108,6 +108,25 @@ function Home() {
     fetchData();
   }, []);
 
+  // use 1 and 2 for voting
+  useEffect(() => {
+    const listener = (evt) => {
+      switch (evt.key) {
+        case '1':
+          vote(state.currentMeals[0].id, state.currentMeals[1].id);
+          break;
+        case '2':
+          vote(state.currentMeals[1].id, state.currentMeals[0].id);
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', listener);
+    return () => {
+      document.removeEventListener('keydown', listener);
+    };
+  }, [state.currentMeals]);
+
   if (loading) {
     return null;
   }
@@ -120,11 +139,13 @@ function Home() {
           <Meal
             meal={state.currentMeals[0]}
             variant="active"
+            number="1"
             onClick={() => vote(state.currentMeals[0].id, state.currentMeals[1].id)}
           />
           <Meal
             meal={state.currentMeals[1]}
             variant="active"
+            number="2"
             onClick={() => vote(state.currentMeals[1].id, state.currentMeals[0].id)}
           />
         </div>
