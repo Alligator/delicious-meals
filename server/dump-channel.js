@@ -1,5 +1,4 @@
 const Discord = require('discord.js');
-const sqlite3 = require('sqlite3').verbose();
 const config = require('./config.json');
 
 function dumpChannel(botToken, channelId, after) {
@@ -48,56 +47,40 @@ function dumpChannel(botToken, channelId, after) {
   });
 }
 
-function createDatabase(file, messages) {
-  const db = new sqlite3.Database(file);
+function createDatabase(db, messages) {
   console.log(`writing ${messages.length} messages`);
 
-  db.serialize(() => {
-    db.run(`
-      CREATE TABLE IF NOT EXISTS messages(
-        id      TEXT PRIMARY KEY,
-        author  TEXT,
-        content TEXT,
-        wins    INTEGER DEFAULT 0,
-        losses  INTEGER DEFAULT 0,
-        rating  INTEGER DEFAULT 1500
-      )`,
-    );
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS messages(
+      id      TEXT PRIMARY KEY,
+      author  TEXT,
+      content TEXT,
+      wins    INTEGER DEFAULT 0,
+      losses  INTEGER DEFAULT 0,
+      rating  INTEGER DEFAULT 1500
+    )`,
+  ).run();
 
-    db.run('BEGIN TRANSACTION');
+  const stmt = db.prepare('INSERT INTO messages(id, author, content) VALUES (?, ?, ?)');
+  const insertMessages = db.transaction((messages) => {
     messages.forEach((message) => {
-      db.run(
-        'INSERT INTO messages(id, author, content) VALUES (?, ?, ?)',
-        message.id,message.author, message.content,
-      );
-    });
-    db.run('COMMIT');
-  });
-
-  db.close();
-}
-
-const file = 'messages.db';
-function dumpEntireChannel() {
-  dumpChannel(config.botToken, config.channelId).then(messages => createDatabase(file, messages));
-}
-
-function dumpChannelSinceLatest() {
-  const db = new sqlite3.Database(file);
-
-  db.serialize(() => {
-    db.get('SELECT max(id) as id FROM messages', (err, result) => {
-    db.close();
-      if (err) {
-        return;
-      }
-      console.log(`fetching messages since ${result.id}`);
-      dumpChannel(config.botToken, config.channelId, result.id)
-        .then((messages) => {
-          createDatabase(file, messages)
-        });
+      stmt.run(message.id, message.author, message.content);
     });
   });
+
+  insertMessages(messages);
+}
+
+function dumpEntireChannel(db) {
+  dumpChannel(config.botToken, config.channelId).then(messages => createDatabase(db, messages));
+}
+
+function dumpChannelSinceLatest(db) {
+  const result = db.prepare('SELECT max(id) as id FROM messages').get();
+  dumpChannel(config.botToken, config.channelId, result.id)
+    .then((messages) => {
+      createDatabase(db, messages)
+    });
 }
 
 function createTestDb() {

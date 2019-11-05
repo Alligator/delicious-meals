@@ -1,4 +1,4 @@
-const sqlite3 = require('sqlite3').verbose();
+const Database = require('better-sqlite3');
 const elo = require('elo-rating');
 const express = require('express');
 const morgan = require('morgan');
@@ -6,39 +6,22 @@ const process = require('process');
 const CronJob = require('cron').CronJob;
 const dumpChannelSinceLatest = require('./dump-channel').dumpChannelSinceLatest;
 
-const db = new sqlite3.Database('messages.db');
-process.on('SIGINT', () => db.close());
-process.on('SIGTERM', () => db.close());
+const db = new Database('messages.db');
+process.on('exit', () => db.close());
+process.on('SIGHUP', () => process.exit(128 + 1));
+process.on('SIGINT', () => process.exit(128 + 2));
+process.on('SIGTERM', () => process.exit(128 + 15));
 
 const messageDb = {
   query(query, params = []) {
-    return new Promise((resolve, reject) => {
-      db.all(query, params, (err, result) => {
-        if (!err) {
-          resolve(result);
-        } else {
-          console.error(err);
-          reject();
-        }
-      });
-    });
+    const stmt = db.prepare(query)
+    return stmt.all(params);
   },
   exec(query, params) {
-    return new Promise((resolve, reject) => {
-      db.serialize(() => {
-        db.run('BEGIN TRANSACTION');
-        db.run(query, params, (err) => {
-          if (!err) {
-            db.run('COMMIT');
-            resolve();
-          } else {
-            db.run('ROLLBACK');
-            console.error(err);
-            reject();
-          }
-        });
-      });
-    });
+    const stmt = db.prepare(query);
+    db.transaction((p) => {
+      stmt.run(p);
+    })(params);
   },
 
   all() {
@@ -67,7 +50,7 @@ const messageDb = {
       AND rating < $maxRating
       ORDER BY random()
       LIMIT 1`,
-      { $id: first[0].id, $minRating: first[0].rating - tolerance, $maxRating: first[0].rating + tolerance },
+      { id: first[0].id, minRating: first[0].rating - tolerance, maxRating: first[0].rating + tolerance },
     );
 
     if (matches.length === 0) {
@@ -116,7 +99,7 @@ const messageDb = {
   updateVotes(ip, userAgent, url) {
     return messageDb.exec(
       `INSERT INTO votes(ip, userAgent, url) VALUES ($ip, $userAgent, $url)`,
-      { $ip: ip, $userAgent: userAgent, $url: url },
+      { ip: ip, userAgent: userAgent, url: url },
     );
   },
   async updateRatings(winnerId, loserId) {
@@ -146,21 +129,21 @@ const messageDb = {
     if (win) {
       await messageDb.exec(
         'UPDATE messages SET rating = $rating, wins = wins + 1 WHERE id = $id',
-        { $rating: rating, $id: id },
+        { rating: rating, id: id },
       );
     } else {
       await messageDb.exec(
         'UPDATE messages SET rating = $rating, losses = losses + 1 WHERE id = $id',
-        { $rating: rating, $id: id },
+        { rating: rating, id: id },
       );
     }
   },
 };
 
 
-const job = new CronJob('0 */1 * * *', dumpChannelSinceLatest);
+const job = new CronJob('0 */1 * * *', () => dumpChannelSinceLatest(db));
 job.start();
-dumpChannelSinceLatest();
+dumpChannelSinceLatest(db);
 
 const app = express();
 app.use(express.json());
