@@ -6,7 +6,14 @@ const process = require('process');
 const CronJob = require('cron').CronJob;
 const dumpChannelSinceLatest = require('./dump-channel').dumpChannelSinceLatest;
 
-const db = new Database('messages.db');
+const devMode = process.argv[2] === '--dev';
+
+let db;
+if (devMode) {
+  db = new Database('messages-test.db');
+} else {
+  db = new Database('messages.db');
+}
 process.on('exit', () => db.close());
 process.on('SIGHUP', () => process.exit(128 + 1));
 process.on('SIGINT', () => process.exit(128 + 2));
@@ -141,9 +148,11 @@ const messageDb = {
 };
 
 
-const job = new CronJob('0 */1 * * *', () => dumpChannelSinceLatest(db));
-job.start();
-dumpChannelSinceLatest(db);
+if (!devMode) {
+  const job = new CronJob('0 */1 * * *', () => dumpChannelSinceLatest(db));
+  job.start();
+  dumpChannelSinceLatest(db);
+}
 
 const app = express();
 app.use(express.json());

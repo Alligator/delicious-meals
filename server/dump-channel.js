@@ -1,5 +1,5 @@
 const Discord = require('discord.js');
-const config = require('./config.json');
+const fs = require('fs');
 
 function dumpChannel(botToken, channelId, after) {
   return new Promise((resolve, reject) => {
@@ -71,32 +71,30 @@ function createDatabase(db, messages) {
   insertMessages(messages);
 }
 
+function readConfig() {
+  if (!fs.existsSync('./config.json')) {
+    const def = {
+      botToken: 'DISCORD BOT TOKEN HERE',
+      channelId: 'DISCORD CHANNEL ID HERE',
+    };
+    fs.writeFileSync('./config.json', JSON.stringify(def, null, 2));
+    throw new Error('no config.json file found! writing a default, please fill it out');
+  }
+  fs.readFileSync('./config.json');
+}
+
 function dumpEntireChannel(db) {
+  const config = readConfig();
   dumpChannel(config.botToken, config.channelId).then(messages => createDatabase(db, messages));
 }
 
 function dumpChannelSinceLatest(db) {
+  const config = readConfig();
   const result = db.prepare('SELECT max(id) as id FROM messages').get();
   dumpChannel(config.botToken, config.channelId, result.id)
     .then((messages) => {
       createDatabase(db, messages)
     });
-}
-
-function createTestDb() {
-  const authors = ['clive', 'tony', 'nigel'];
-  const messages = []
-  for (let i = 0; i < 100; i++) {
-    messages.push({
-      id: Math.floor(Math.random() * 10000000),
-      author: authors[Math.floor(Math.random() * authors.length)],
-      content: `nutrient paste #${i}`,
-      wins: Math.floor(Math.random() * 50),
-      losses: Math.floor(Math.random() * 50),
-      rating: Math.floor(Math.random() * 2000),
-    });
-  }
-  createDatabase('messages-test.db', messages);
 }
 
 module.exports = { dumpEntireChannel, dumpChannelSinceLatest };
