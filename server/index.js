@@ -73,7 +73,7 @@ const messageDb = {
       FROM (
         SELECT
           author,
-          CAST(sum(wins) AS real) / sum(losses) as ratio,
+          ifnull(CAST(sum(wins) AS real) / sum(losses), wins) as ratio,
           sum(wins) AS totalWins,
           sum(losses) AS totalLosses,
           count(1) AS totalMeals
