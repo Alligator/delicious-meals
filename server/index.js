@@ -197,7 +197,8 @@ app.get('/stats', (req, res) => {
 });
 
 app.get('*', (req, res) => {
-  res.redirect('/');
+  res.sendFile('index.html', { root: 'static' });
+  // res.redirect('/');
 });
 
-app.listen(3000, () => console.log('listening'));
+app.listen(3000, () => console.log('listening on port 3000'));
