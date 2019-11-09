@@ -1,9 +1,11 @@
 import 'regenerator-runtime/runtime';
 
-import React, { useReducer, useEffect, useState } from 'react';
+import React, { useReducer, useEffect, useState, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import Router from 'preact-router';
 import Meal from './meal';
+import MealList from './meal-list';
+import AuthorList from './author-list';
 
 const initialState = {
   currentMeals: [],
@@ -22,7 +24,7 @@ function reducer(state, action) {
       return {
         ...state,
         currentMeals: action.meals,
-        previousMeals: state.currentMeals,
+        previousMeals: action.store ? state.currentMeals : state.previousMeals,
       };
     }
     case 'voteComplete': {
@@ -64,19 +66,37 @@ function Home() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState(randomMessage);
 
-  async function fetchNewPair() {
+  const votingRef = useRef(false);
+
+  // default to this so the function fetches immediately
+  const statsTimeout = useRef('init');
+
+  async function fetchNewPair(extraOpts) {
     const response = await fetch('meals/pair');
     const json = await response.json();
-    dispatch({ type: 'setMeals', meals: json });
+    dispatch({ type: 'setMeals', meals: json, store: true, ...extraOpts });
   }
 
   async function fetchStats() {
-    const response = await fetch('stats');
-    const stats = await response.json();
-    dispatch({ type: 'setStats', stats });
+    const go = async () => {
+      const response = await fetch('stats');
+      const stats = await response.json();
+      dispatch({ type: 'setStats', stats });
+    };
+    if (statsTimeout.current === 'init') {
+      go();
+      statsTimeout.current = 0;
+    } else {
+      clearTimeout(statsTimeout.current);
+      statsTimeout.current = setTimeout(go, 1000);
+    }
   }
 
   async function vote(winnerId, loserId) {
+    if (votingRef.current) {
+      return;
+    }
+    votingRef.current = true;
     const response = await fetch('meals/vote', {
       method: 'POST',
       body: JSON.stringify({ winnerId, loserId }),
@@ -87,6 +107,12 @@ function Home() {
 
     await fetchNewPair();
     await fetchStats();
+    setMessage(randomMessage());
+    votingRef.current = false;
+  }
+
+  async function skip() {
+    await fetchNewPair({ store: false });
     setMessage(randomMessage());
   }
 
@@ -110,13 +136,13 @@ function Home() {
 
   // use 1 and 2 for voting
   useEffect(() => {
-    const listener = (evt) => {
+    const listener = async (evt) => {
       switch (evt.key) {
         case '1':
-          vote(state.currentMeals[0].id, state.currentMeals[1].id);
+          await vote(state.currentMeals[0].id, state.currentMeals[1].id);
           break;
         case '2':
-          vote(state.currentMeals[1].id, state.currentMeals[0].id);
+          await vote(state.currentMeals[1].id, state.currentMeals[0].id);
           break;
       }
     };
@@ -136,60 +162,49 @@ function Home() {
       <p className="narrative">{message}</p>
       {state.currentMeals && state.currentMeals.length === 2 && (
         <div className="meals">
-          <Meal
-            meal={state.currentMeals[0]}
-            variant="active"
-            number="1"
-            onClick={() => vote(state.currentMeals[0].id, state.currentMeals[1].id)}
-          />
-          <Meal
-            meal={state.currentMeals[1]}
-            variant="active"
-            number="2"
-            onClick={() => vote(state.currentMeals[1].id, state.currentMeals[0].id)}
-          />
+          <Meal variant="active" onClick={() => vote(state.currentMeals[0].id, state.currentMeals[1].id)}>
+            <Meal.Number>1</Meal.Number>
+            <Meal.Name>{state.currentMeals[0].content}</Meal.Name>
+          </Meal>
+          <Meal variant="active" onClick={() => vote(state.currentMeals[1].id, state.currentMeals[0].id)}>
+            <Meal.Number>2</Meal.Number>
+            <Meal.Name>{state.currentMeals[1].content}</Meal.Name>
+          </Meal>
         </div>
       )}
+      <div className="skip">
+        <button type="button" onClick={skip}>skip</button>
+      </div>
       {state.previousMeals && state.previousMeals.length === 2 && (
         <>
           <h2>Previous Match</h2>
           <div className="meals">
-            <Meal
-              meal={state.previousMeals[0]}
-              variant={getPreviousMealVariant(state.previousMeals[0])}
-            />
-            <Meal
-              meal={state.previousMeals[1]}
-              variant={getPreviousMealVariant(state.previousMeals[1])}
-            />
+            <Meal variant={getPreviousMealVariant(state.previousMeals[0])}>
+              <Meal.Stats meal={state.previousMeals[0]} />
+              <Meal.Name>
+                {state.previousMeals[0].content}
+              </Meal.Name>
+              <Meal.Author>{state.previousMeals[0].author}</Meal.Author>
+            </Meal>
+            <Meal variant={getPreviousMealVariant(state.previousMeals[1])}>
+              <Meal.Stats meal={state.previousMeals[1]} />
+              <Meal.Name>
+                {state.previousMeals[1].content}
+              </Meal.Name>
+              <Meal.Author>{state.previousMeals[1].author}</Meal.Author>
+            </Meal>
           </div>
         </>
       )}
       <div className="stats">
         <div className="stats__list">
           <h2>Top Ten Meals</h2>
-          <ol>
-            {state.stats.topMessages.map(meal => (
-              <li>
-                <strong>{meal.content}</strong> <em>à la {meal.author}</em>
-                <br />
-                <strong>{meal.wins}</strong> wins, <strong>{meal.losses}</strong> losses, <strong>{meal.rating}</strong> elo
-              </li>
-            ))}
-          </ol>
+          <MealList meals={state.stats.topMessages} />
           <p><a href="/all-meals">View All</a></p>
         </div>
         <div className="stats__list">
           <h2>Top Ten Chefs</h2>
-          <ol>
-            {state.stats.topAuthors.map(author => (
-              <li>
-                <strong>{author.author}</strong> - {author.totalMeals} {author.totalMeals > 1 ? 'meals' : 'meal'}
-                <br />
-                <strong>{author.totalWins}</strong> wins, <strong>{author.totalLosses}</strong> losses, <strong>{author.ratio.toFixed(2)}</strong> ratio
-              </li>
-            ))}
-          </ol>
+          <AuthorList authors={state.stats.topAuthors} />
           <p><a href="/all-chefs">View All</a></p>
         </div>
       </div>
@@ -223,15 +238,7 @@ function AllMeals() {
       <h2>All Meals</h2>
       <div className="stats">
         <div className="stats__list">
-          <ol>
-            {meals.map(meal => (
-              <li>
-                <strong>{meal.content}</strong> <em>à la {meal.author}</em>
-                <br />
-                <strong>{meal.wins}</strong> wins, <strong>{meal.losses}</strong> losses, <strong>{meal.rating}</strong> elo
-              </li>
-            ))}
-          </ol>
+          <MealList meals={meals} />
         </div>
       </div>
       <p><a href="/">Back</a></p>
@@ -257,15 +264,7 @@ function AllChefs() {
       <h2>All Chefs</h2>
       <div className="stats">
         <div className="stats__list">
-          <ol>
-            {authors.map(author => (
-              <li>
-                <strong>{author.author}</strong> - {author.totalMeals} {author.totalMeals > 1 ? 'meals' : 'meal'}
-                <br />
-                <strong>{author.totalWins}</strong> wins, <strong>{author.totalLosses}</strong> losses, <strong>{author.ratio.toFixed(2)}</strong> ratio
-              </li>
-            ))}
-          </ol>
+          <AuthorList authors={authors} />
         </div>
       </div>
       <p><a href="/">Back</a></p>
@@ -276,7 +275,7 @@ function AllChefs() {
 function App() {
   return (
     <>
-      <h1>Welcome To Flavored Town</h1>
+      <h1>New Delicious Meals</h1>
       <Router>
         <Home path="/" />
         <AllMeals path="/all-meals" />
