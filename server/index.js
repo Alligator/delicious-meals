@@ -160,6 +160,14 @@ app.use(express.static('static', { extensions: ['html'] }));
 app.use(morgan('combined'));
 app.set('trust proxy', 'loopback');
 
+if (devMode) {
+  app.use(function(req, res, next) {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+    next();
+  });
+}
+
 app.get('/', async (req, res) => {
   res.send(await messageDb.all());
 });
