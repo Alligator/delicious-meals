@@ -12,7 +12,7 @@ function dumpChannel(botToken, channelId, after) {
       let oldestMessage;
       let newestMessage = after;
       while (true) {
-        console.log(oldestMessage, newestMessage);
+        // console.log(oldestMessage, newestMessage);
         let rawMessages;
         if (after) {
           // move forward
@@ -48,7 +48,9 @@ function dumpChannel(botToken, channelId, after) {
 }
 
 function createDatabase(db, messages) {
-  console.log(`writing ${messages.length} messages`);
+  if (messages.length > 0) {
+    console.log(`writing ${messages.length} messages`);
+  }
 
   db.prepare(`
     CREATE TABLE IF NOT EXISTS messages(
@@ -80,7 +82,7 @@ function readConfig() {
     fs.writeFileSync('./config.json', JSON.stringify(def, null, 2));
     throw new Error('no config.json file found! writing a default, please fill it out');
   }
-  fs.readFileSync('./config.json');
+  return JSON.parse(fs.readFileSync('./config.json'));
 }
 
 function dumpEntireChannel(db) {
