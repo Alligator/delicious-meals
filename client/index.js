@@ -208,6 +208,12 @@ function Home() {
           <p><a href="/all-chefs">View All</a></p>
         </div>
       </div>
+      <h2>Course One</h2>
+      <p style="line-height: 1.5">
+        <strong>{state.stats.lastSeasonWinner.content}</strong> <em>à la {state.stats.lastSeasonWinner.author}</em>
+        <br />
+        <strong>{state.stats.lastSeasonWinner.wins}</strong> wins, <strong>{state.stats.lastSeasonWinner.losses}</strong> losses, <strong>{state.stats.lastSeasonWinner.rating}</strong> elo
+      </p>
       <h2>Stats</h2>
       <p>
         <strong>{state.stats.totalVotes}</strong> votes
@@ -275,7 +281,7 @@ function AllChefs() {
 function App() {
   return (
     <>
-      <h1>New Delicious Meals</h1>
+      <h1>New Delicious Meals: Course Two</h1>
       <Router>
         <Home path="/" />
         <AllMeals path="/all-meals" />

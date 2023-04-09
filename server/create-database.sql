@@ -21,3 +21,11 @@ SELECT
   -- 1420070400000 = 2015-1-1 00:00:00, the epoch for discord timestamps
 , datetime(((id >> 22) + 1420070400000) / 1000, 'unixepoch') AS date
 FROM messages;
+
+CREATE TABLE IF NOT EXISTS message_votes(
+  message_id  TEXT,
+  season      INTEGER DEFAULT 1,
+  wins        INTEGER DEFAULT 0,
+  losses      INTEGER DEFAULT 0,
+  rating      INTEGER DEFAULT 1500
+);

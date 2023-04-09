@@ -6,6 +6,8 @@ const process = require('process');
 const CronJob = require('cron').CronJob;
 const dumpChannelSinceLatest = require('./dump-channel').dumpChannelSinceLatest;
 
+const CURRENT_SEASON = 2;
+
 const devMode = process.argv[2] === '--dev';
 
 let db;
@@ -32,10 +34,36 @@ const messageDb = {
   },
 
   all() {
-    return messageDb.query('SELECT * FROM messages ORDER BY rating DESC');
+    return messageDb.query(`
+      SELECT
+        m.id,
+        m.author,
+        m.content,
+        mv.wins,
+        mv.losses,
+        mv.rating
+      FROM messages AS m
+      INNER JOIN message_votes AS mv
+        ON mv.message_id = m.id
+        AND mv.season = ?
+      ORDER BY mv.rating DESC, mv.message_id
+    `, [CURRENT_SEASON]);
   },
   async get(id) {
-    const messages = await messageDb.query('SELECT * FROM messages WHERE id = ?', [id]);
+    const messages = await messageDb.query(`
+      SELECT
+        m.id,
+        m.author,
+        m.content,
+        mv.wins,
+        mv.losses,
+        mv.rating
+      FROM messages AS m
+      INNER JOIN message_votes AS mv
+        ON mv.message_id = m.id
+        AND mv.season = ?
+      WHERE m.id = ?
+    `, [CURRENT_SEASON, id]);
     return messages.length > 0 ? messages[0] : null;
   },
   async closeMatch() {
@@ -45,19 +73,47 @@ const messageDb = {
     }
 
     // get a random record
-    const first = await messageDb.query('SELECT * FROM messages ORDER BY random() LIMIT 1');
+    const first = await messageDb.query(`
+      SELECT
+        m.id,
+        m.author,
+        m.content,
+        mv.wins,
+        mv.losses,
+        mv.rating
+      FROM messages AS m
+      INNER JOIN message_votes AS mv
+        ON mv.message_id = m.id
+        AND mv.season = ?
+      ORDER BY random()
+      LIMIT 1
+    `, [CURRENT_SEASON]);
 
     // try and get a match with a close rating
     const tolerance = 20;
     const matches = await messageDb.query(`
-      SELECT *
-      FROM messages
-      WHERE id != $id
-      AND rating > $minRating
-      AND rating < $maxRating
+      SELECT
+        m.id,
+        m.author,
+        m.content,
+        mv.wins,
+        mv.losses,
+        mv.rating
+      FROM messages AS m
+      INNER JOIN message_votes AS mv
+        ON mv.message_id = m.id
+        AND mv.season = $season
+      WHERE m.id != $id
+      AND mv.rating > $minRating
+      AND mv.rating < $maxRating
       ORDER BY random()
       LIMIT 1`,
-      { id: first[0].id, minRating: first[0].rating - tolerance, maxRating: first[0].rating + tolerance },
+      {
+        id: first[0].id,
+        minRating: first[0].rating - tolerance,
+        maxRating: first[0].rating + tolerance,
+        season: CURRENT_SEASON,
+      },
     );
 
     if (matches.length === 0) {
@@ -69,10 +125,38 @@ const messageDb = {
     return [first[0], matches[0]];
   },
   randomPair() {
-    return messageDb.query('SELECT * FROM messages ORDER BY random() LIMIT 2');
+    return messageDb.query(`
+      SELECT
+        m.id,
+        m.author,
+        m.content,
+        mv.wins,
+        mv.losses,
+        mv.rating
+      FROM messages AS m
+      INNER JOIN message_votes AS mv
+        ON mv.message_id = m.id
+        AND mv.season = ?
+      ORDER BY random()
+      LIMIT 2
+    `, [CURRENT_SEASON]);
   },
   topTenMessages() {
-    return messageDb.query('SELECT * FROM messages ORDER BY rating DESC LIMIT 10');
+    return messageDb.query(`
+      SELECT
+        m.id,
+        m.author,
+        m.content,
+        mv.wins,
+        mv.losses,
+        mv.rating
+      FROM messages AS m
+      INNER JOIN message_votes AS mv
+        ON mv.message_id = m.id
+        AND mv.season = ?
+      ORDER BY mv.rating DESC, mv.message_id
+      LIMIT 10
+    `, [CURRENT_SEASON]);
   },
   authors(limit = -1) {
     return messageDb.query(`
@@ -80,16 +164,19 @@ const messageDb = {
       FROM (
         SELECT
           author,
-          ifnull(CAST(sum(wins) AS real) / sum(losses), wins) as ratio,
-          sum(wins) AS totalWins,
-          sum(losses) AS totalLosses,
+          ifnull(CAST(sum(mv.wins) AS real) / sum(mv.losses), mv.wins) as ratio,
+          sum(mv.wins) AS totalWins,
+          sum(mv.losses) AS totalLosses,
           count(1) AS totalMeals
-        FROM messages
+        FROM messages AS m
+        INNER JOIN message_votes AS mv
+          ON mv.message_id = m.id
+          AND mv.season = ?
         GROUP BY author
       )
       ORDER BY ratio DESC
       LIMIT ?`,
-      limit,
+      [CURRENT_SEASON, limit],
     );
   },
   async stats() {
@@ -102,10 +189,25 @@ const messageDb = {
     `);
     return stats[0];
   },
+  async lastSeasonWinner() {
+    const lastSeasonWinner = await messageDb.query(`
+      SELECT
+        m.author,
+        m.content,
+        mv.wins,
+        mv.losses,
+        MAX(mv.rating) as rating
+      FROM message_votes AS mv
+      INNER JOIN messages AS m ON m.id = mv.message_id
+      WHERE season = ?
+    `, CURRENT_SEASON - 1);
 
+    return lastSeasonWinner[0];
+  },
   updateVotes(ip, userAgent, url) {
-    return messageDb.exec(
-      `INSERT INTO votes(ip, userAgent, url) VALUES ($ip, $userAgent, $url)`,
+    return messageDb.exec(`
+      INSERT INTO votes(ip, userAgent, url)
+      VALUES ($ip, $userAgent, $url)`,
       { ip: ip, userAgent: userAgent, url: url },
     );
   },
@@ -134,14 +236,20 @@ const messageDb = {
   },
   async updateRating(id, rating, win) {
     if (win) {
-      await messageDb.exec(
-        'UPDATE messages SET rating = $rating, wins = wins + 1 WHERE id = $id',
-        { rating: rating, id: id },
+      await messageDb.exec(`
+        UPDATE message_votes
+        SET rating = $rating, wins = wins + 1
+        WHERE message_id = $id
+        AND season = $season
+        `, { rating, id, season: CURRENT_SEASON },
       );
     } else {
-      await messageDb.exec(
-        'UPDATE messages SET rating = $rating, losses = losses + 1 WHERE id = $id',
-        { rating: rating, id: id },
+      await messageDb.exec(`
+        UPDATE message_votes
+        SET rating = $rating, losses = losses + 1
+        WHERE message_id = $id
+        AND season = $season
+        `, { rating, id, season: CURRENT_SEASON },
       );
     }
   },
@@ -149,9 +257,9 @@ const messageDb = {
 
 
 if (!devMode) {
-  const job = new CronJob('0 */1 * * *', () => dumpChannelSinceLatest(db));
+  const job = new CronJob('0 */1 * * *', () => dumpChannelSinceLatest(db, CURRENT_SEASON));
   job.start();
-  dumpChannelSinceLatest(db);
+  dumpChannelSinceLatest(db, CURRENT_SEASON);
 }
 
 const app = express();
@@ -191,8 +299,9 @@ app.get('/stats', (req, res) => {
     messageDb.topTenMessages(),
     messageDb.authors(10),
     messageDb.stats(),
-  ]).then(([topMessages, topAuthors, stats]) => {
-    res.send({ topMessages, topAuthors, ...stats });
+    messageDb.lastSeasonWinner(),
+  ]).then(([topMessages, topAuthors, stats, lastSeasonWinner]) => {
+    res.send({ topMessages, topAuthors, lastSeasonWinner, ...stats });
   });
 });
 

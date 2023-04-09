@@ -47,27 +47,24 @@ function dumpChannel(botToken, channelId, after) {
   });
 }
 
-function createDatabase(db, messages) {
+function createDatabase(db, messages, season) {
   if (messages.length > 0) {
     console.log(`writing ${messages.length} messages`);
   }
 
-  db.prepare(`
-    CREATE TABLE IF NOT EXISTS messages(
-      id      TEXT PRIMARY KEY,
-      author  TEXT,
-      content TEXT,
-      wins    INTEGER DEFAULT 0,
-      losses  INTEGER DEFAULT 0,
-      rating  INTEGER DEFAULT 1500
-    )`,
-  ).run();
+  const stmt = db.prepare(`
+    INSERT INTO messages(id, author, content) VALUES (?, ?, ?)
+  `);
 
-  const stmt = db.prepare('INSERT INTO messages(id, author, content) VALUES (?, ?, ?)');
+  const mvStmt = db.prepare(`
+    INSERT INTO message_votes(message_id, season) VALUES (?, ?)
+  `);
+
   const insertMessages = db.transaction((messages) => {
     messages.forEach((message) => {
       try {
         stmt.run(message.id, message.author, message.content);
+        mvStmt.run(message.id, season);
       } catch (e) {
         if (e.message == 'UNIQUE constraint failed: messages.id') {
           console.log(`skipped duplicate message ${JSON.stringify(message)}`);
@@ -98,12 +95,12 @@ function dumpEntireChannel(db) {
   dumpChannel(config.botToken, config.channelId).then(messages => createDatabase(db, messages));
 }
 
-function dumpChannelSinceLatest(db) {
+function dumpChannelSinceLatest(db, season) {
   const config = readConfig();
   const result = db.prepare('SELECT max(id) as id FROM messages').get();
   dumpChannel(config.botToken, config.channelId, result.id)
     .then((messages) => {
-      createDatabase(db, messages)
+      createDatabase(db, messages, season)
     });
 }
 
