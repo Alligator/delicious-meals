@@ -66,7 +66,15 @@ function createDatabase(db, messages) {
   const stmt = db.prepare('INSERT INTO messages(id, author, content) VALUES (?, ?, ?)');
   const insertMessages = db.transaction((messages) => {
     messages.forEach((message) => {
-      stmt.run(message.id, message.author, message.content);
+      try {
+        stmt.run(message.id, message.author, message.content);
+      } catch (e) {
+        if (e.message == 'UNIQUE constraint failed: messages.id') {
+          console.log(`skipped duplicate message ${JSON.stringify(message)}`);
+        } else {
+          throw e;
+        }
+      }
     });
   });
 

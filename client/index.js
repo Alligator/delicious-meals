@@ -198,7 +198,7 @@ function Home() {
       )}
       <div className="stats">
         <div className="stats__list">
-          <h2>Top Ten Meals</h2>
+          <h2>The Eaterboard</h2>
           <MealList meals={state.stats.topMessages} />
           <p><a href="/all-meals">View All</a></p>
         </div>
